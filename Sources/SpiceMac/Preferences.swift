@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import Foundation
+import DisplayScale
 
 /// App preferences, backed by `UserDefaults`.
 enum Preferences {
@@ -36,8 +37,24 @@ enum Preferences {
         get { (UserDefaults.standard.object(forKey: trashAfterUseKey) as? Bool) ?? true }
         set { UserDefaults.standard.set(newValue, forKey: trashAfterUseKey) }
     }
+
+    private static let displayZoomKey = "DisplayZoom"
+
+    /// Display zoom: host physical pixels per guest pixel, so at 200% the guest
+    /// renders a quarter of the pixels and each is drawn as a 2x2 block. Default
+    /// `.automatic` (zoom = backingScaleFactor), which makes the guest resolution
+    /// track the window's POINT size. Changing it posts `.displayZoomChanged`, and
+    /// raw 0 == `.automatic`, so a missing key reads as automatic.
+    static var displayZoom: DisplayZoom {
+        get { DisplayZoom(rawValue: UserDefaults.standard.integer(forKey: displayZoomKey)) ?? .automatic }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: displayZoomKey)
+            NotificationCenter.default.post(name: .displayZoomChanged, object: nil)
+        }
+    }
 }
 
 extension Notification.Name {
     static let hideHostCursorChanged = Notification.Name("SpiceMac.hideHostCursorChanged")
+    static let displayZoomChanged = Notification.Name("SpiceMac.displayZoomChanged")
 }

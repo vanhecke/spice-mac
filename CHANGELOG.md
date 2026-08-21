@@ -6,6 +6,34 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Display zoom (View ▸ Zoom).** On a Retina Mac the client asked the guest for
+  the view's full *backing pixel* count, so a 1512×982-point window drove the
+  guest at 3024×1964 — the guest has no idea the Mac is HiDPI, so it rendered
+  one pixel per pixel and everything came out half size, while the VM pushed
+  four times the pixels it needed. Zoom is now **Z = Mac physical pixels per
+  guest pixel**: the client requests `points × backing scale ÷ Z` and each guest
+  pixel is drawn as a Z×Z block, so readability and cost improve together.
+  Shortcuts **⌃⌘+ / ⌃⌘− / ⌃⌘0**.
+
+- **Without `spice-vdagent`, zoom resizes the *window***
+  (`guest × Z ÷ backing scale` points) rather than doing nothing — the guest
+  resolution is fixed, so that is the only side of the equation left. The
+  geometry is a new dependency-free package, `Packages/DisplayScale`, with a
+  18-check `scalecheck` runner wired into `make test` and CI.
+
+### Changed
+
+- **The default zoom is Automatic (Z = the screen's backing scale), which
+  changes behaviour on upgrade.** The guest resolution now tracks the window's
+  *point* size instead of its backing-pixel size, so on first connect after
+  updating a Retina guest drops to roughly half its previous resolution and
+  everything in it gets twice as big. That is the fix; **View ▸ Zoom ▸ 100%**
+  restores the old behaviour. Automatic also means the requested resolution is
+  the window's point size on *any* display, so dragging between screens needs no
+  guest reconfiguration.
+
 ## [0.1.7] — 2026-06-15
 
 ### Fixed

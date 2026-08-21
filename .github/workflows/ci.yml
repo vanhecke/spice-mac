@@ -29,6 +29,10 @@ jobs:
         working-directory: Packages/SpiceInputMap
         run: swift run inputcheck
 
+      - name: DisplayScale — zoom / viewport geometry checks
+        working-directory: Packages/DisplayScale
+        run: swift run scalecheck
+
       - name: Version consistency (Info.plist / CHANGELOG / links)
         run: ./scripts/check-version.sh
 

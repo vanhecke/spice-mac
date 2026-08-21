@@ -91,6 +91,7 @@ Native SPICE frameworks (arm64)   Frameworks/  (staged by scripts/fetch-sysroot.
 Pure-Swift, independently testable:
   VVConfig        Packages/VVConfig       — virt-viewer .vv parser (+ Proxmox)
   SpiceInputMap   Packages/SpiceInputMap  — macOS keycode → PC set-1 scancode
+  DisplayScale    Packages/DisplayScale   — zoom / viewport geometry (guest px ↔ points)
 ```
 
 The decisive design point: **CocoaSpice must be forked.** `CSConnection` keeps the
@@ -180,8 +181,9 @@ CA.
 The pure-Swift libraries build and test with just the Swift toolchain (no Xcode):
 
 ```sh
-( cd Packages/VVConfig     && swift run vvcheck )     # .vv parser: 15 checks
+( cd Packages/VVConfig      && swift run vvcheck )     # .vv parser: 24 checks
 ( cd Packages/SpiceInputMap && swift run inputcheck )  # scancode map: 13 checks
+( cd Packages/DisplayScale  && swift run scalecheck )  # zoom geometry: 18 checks
 ```
 
 The CocoaSpice fork patch was syntax-checked against the real vendored
@@ -194,7 +196,9 @@ glib/spice headers (`clang -fsyntax-only`, exit 0).
   *must* go through `proxy=…:3128`. Re-download for every (re)connect.
 - **Inverted TLS verification.** Trust the self-signed PVE cluster CA and match
   `cert-subject`; normal hostname/pubkey checks fail by design.
-- **Guest agent required** for clipboard + dynamic resolution.
+- **Guest agent required** for clipboard + dynamic resolution — including **View ▸
+  Zoom**, which works by asking the guest for a different resolution. Without
+  `spice-vdagent` the guest resolution is fixed, so zoom resizes the *window* instead.
 - **Audio needs a SPICE audio device on the VM** — most Proxmox VMs ship without
   one, so there's no playback channel. Add **Hardware ▸ Audio Device** (e.g.
   `ich9-intel-hda`, backend **SPICE**) and reboot the guest.
@@ -204,6 +208,25 @@ glib/spice headers (`clang -fsyntax-only`, exit 0).
   (the latest upstream release)**, but **glib/gstreamer** are still the older UTM build
   (lower-priority; acceptable for personal use but carry their own CVEs). (A raw UTM
   sysroot still has OpenSSL 1.1.1b — run `upgrade-openssl.sh`.)
+
+## Display zoom (Retina)
+
+**View ▸ Zoom** sets how many Mac physical pixels each guest pixel occupies.
+
+SpiceMac asks the guest agent for a resolution of `window points × backing scale ÷
+zoom`. At **200%** on a Retina Mac the guest renders a quarter of the pixels and each
+one is drawn as a crisp 2×2 block (nearest-neighbour kicks in automatically at
+whole-number zoom) — readable guest UI *and* markedly less work for the VM, the host,
+and the wire.
+
+The default is **Automatic**, i.e. zoom = the screen's backing scale, so the guest
+resolution simply tracks the window's *point* size: 2× on the built-in Retina display,
+1× on a normal-DPI external monitor, adjusting itself when you drag the window between
+them. Pick **100%** for the old behaviour (guest resolution = full backing pixels;
+correct, but tiny on Retina).
+
+Shortcuts are ⌃⌘+ / ⌃⌘− / ⌃⌘0 (zoom in / out / Automatic) rather than plain ⌘±, so
+⌘+ and ⌘− keep reaching the guest as Super-plus / Super-minus.
 
 ## USB redirection
 

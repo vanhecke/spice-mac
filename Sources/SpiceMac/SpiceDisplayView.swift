@@ -4,6 +4,7 @@ import MetalKit
 import CocoaSpice
 import CocoaSpiceRenderer
 import SpiceController
+import DisplayScale
 
 /// The Metal-backed view that renders one SPICE display and is the keyboard/mouse
 /// first responder. CocoaSpice draws into it via a `CSMetalRenderer` set as the
@@ -29,6 +30,17 @@ final class SpiceDisplayView: MTKView {
     /// ⌘H, …) — those don't fire mouseExited/resignFirstResponder, so without this
     /// a hidden cursor could stay hidden system-wide.
     private var appResignObserver: NSObjectProtocol?
+
+    /// Called when the backing scale factor ACTUALLY changes. The view knows
+    /// nothing about zoom; the window controller owns what guest resolution that
+    /// should imply.
+    var onBackingScaleChange: ((CGFloat) -> Void)?
+    private var lastBackingScale: CGFloat = 0
+
+    /// The sampler filter currently installed. `changeUpscaler:` rebuilds an
+    /// `MTLSamplerState` and `updateViewport()` runs on every live-resize step, so
+    /// only touch it on an actual transition.
+    private var currentFilter: MTLSamplerMinMagFilter?
 
     init() {
         // CSMetalRenderer reads `mtkView.device` at init, so the device must exist
@@ -110,6 +122,7 @@ final class SpiceDisplayView: MTKView {
         displaySizeObservation = nil
         delegate = nil
         renderer = nil
+        currentFilter = nil   // the next renderer starts with CocoaSpice's linear default
         attachedDisplay = nil
         // NB: do NOT clear router.input here. The inputs channel is independent of
         // the display; its lifecycle is driven by spiceInput{Available,Unavailable}.
@@ -122,7 +135,7 @@ final class SpiceDisplayView: MTKView {
 
     /// Current backing scale (points -> physical/drawable pixels). Falls back to
     /// the view's `convertToBacking` so it is correct even before `window` is set.
-    private var backingScale: CGFloat {
+    var backingScale: CGFloat {
         window?.backingScaleFactor ?? convertToBacking(CGSize(width: 1, height: 1)).width
     }
 
@@ -142,8 +155,11 @@ final class SpiceDisplayView: MTKView {
         guard let guest = attachedDisplay?.displaySize,
               guest.width > 0, guest.height > 0 else { return nil }
         let drawable = drawableSize
-        let scale = Self.fitScale(guest: guest, drawable: drawable)
-        // We center via viewportOrigin = .zero (the renderer centers the quad).
+        // Single source of truth: the renderer and the input router MUST see the
+        // same number, snap included, or the guest cursor drifts from the macOS
+        // pointer.
+        let scale = DisplayScale.renderScale(guest: guest, drawable: drawable)
+        // The renderer centres the quad, so viewportOrigin stays .zero.
         return ViewportInfo(guestSize: guest,
                             drawableSize: drawable,
                             scale: scale,
@@ -151,21 +167,27 @@ final class SpiceDisplayView: MTKView {
                             backingScale: backingScale)
     }
 
-    /// Largest uniform scale that fits the guest display inside the drawable
-    /// (aspect-preserving "fit with black bars"). Use `max` for cover/fill.
-    private static func fitScale(guest: CGSize, drawable: CGSize) -> CGFloat {
-        guard guest.width > 0, guest.height > 0,
-              drawable.width > 0, drawable.height > 0 else { return 1.0 }
-        return min(drawable.width / guest.width, drawable.height / guest.height)
-    }
-
-    /// Push the aspect-fit scale to the renderer. Centering is automatic: the
-    /// renderer draws the guest quad centered on the drawable, so viewportOrigin
-    /// stays .zero and the letterbox bars are split evenly.
+    /// Push the aspect-fit scale to the renderer and pick the sampler.
+    ///
+    /// The renderer centres the guest quad, so `viewportOrigin` stays `.zero` and
+    /// the letterbox bars split evenly. At a whole-number magnification — which zoom
+    /// aims for — every guest pixel becomes an exact NxN block, so nearest-neighbour
+    /// keeps guest text crisp; everything else stays linear.
     private func updateViewport() {
         guard let renderer, let info = viewportInfo() else { return }
         renderer.viewportScale = info.scale
         renderer.viewportOrigin = .zero
+
+        let filter: MTLSamplerMinMagFilter =
+            DisplayScale.usesNearestFilter(scale: info.scale) ? .nearest : .linear
+        if filter != currentFilter {
+            currentFilter = filter
+            // upscaler = magFilter, downscaler = minFilter; downscaling stays
+            // linear. NB: -changeUpscaler:downscaler: does not set
+            // renderNeedsUpdate, which is fine because the filter only changes when
+            // the scale does, and -setViewportScale: above already did.
+            renderer.changeUpscaler(filter, downscaler: .linear)
+        }
     }
 
     // Recompute on any geometry change. `drawableSize` tracks `bounds * backingScale`,
@@ -178,6 +200,13 @@ final class SpiceDisplayView: MTKView {
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
         updateViewport()
+        // Report a real backing-scale transition upward. AppKit also fires this for
+        // a colour-space change and on first insertion, so filter on the value.
+        let scale = backingScale
+        if scale > 0, abs(scale - lastBackingScale) > 0.001 {
+            lastBackingScale = scale
+            onBackingScaleChange?(scale)
+        }
     }
 
     // MARK: - Responder
