@@ -151,10 +151,22 @@ final class SpiceDisplayView: MTKView {
         var backingScale: CGFloat   // points -> drawable pixels
     }
 
+    /// The view's size in PHYSICAL pixels — what the guest has to be fitted into.
+    ///
+    /// Deliberately NOT `MTKView.drawableSize`, which refreshes lazily: on a real
+    /// 2.0↔1.0 drag the callback reports the new backing scale while `drawableSize`
+    /// still says 1800×1200 for a view that is now 900×600. `convertToBacking`
+    /// follows the backing store, and it matters because such a move does NOT change
+    /// the point size, so no `setFrameSize` follows to recompute the fit.
+    private var physicalSize: CGSize {
+        let size = convertToBacking(bounds).size
+        return size.width > 1 && size.height > 1 ? size : drawableSize
+    }
+
     func viewportInfo() -> ViewportInfo? {
         guard let guest = attachedDisplay?.displaySize,
               guest.width > 0, guest.height > 0 else { return nil }
-        let drawable = drawableSize
+        let drawable = physicalSize
         // Single source of truth: the renderer and the input router MUST see the
         // same number, snap included, or the guest cursor drifts from the macOS
         // pointer.
@@ -199,6 +211,13 @@ final class SpiceDisplayView: MTKView {
 
     override func viewDidChangeBackingProperties() {
         super.viewDidChangeBackingProperties()
+        // Pull MTKView's drawable up rather than waiting for its lazy refresh: it
+        // is what the renderer draws into, so while it lags the guest is presented
+        // at the old screen's scale. A no-op when it already agrees.
+        let physical = physicalSize
+        if physical.width > 1, physical.height > 1, physical != drawableSize {
+            drawableSize = physical
+        }
         updateViewport()
         // Report a real backing-scale transition upward. AppKit also fires this for
         // a colour-space change and on first insertion, so filter on the value.

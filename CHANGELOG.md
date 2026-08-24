@@ -34,6 +34,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the window's point size on *any* display, so dragging between screens needs no
   guest reconfiguration.
 
+### Fixed
+
+- **Dragging a window between a Retina panel and a 1x monitor did not re-scale
+  the guest.** `MTKView` refreshes `drawableSize` lazily, so inside
+  `viewDidChangeBackingProperties` — the one moment such a move offers — it
+  still holds the *previous* screen's value: on a real 2.0↔1.0 drag the callback
+  reports `backingScaleFactor` 1.0 while `drawableSize` is still 1800×1200 for a
+  view that is now 900×600 physical pixels. The fit now measures with
+  `convertToBacking(bounds)`, which follows the backing store immediately, and
+  pulls the drawable up to match.
 ## [0.1.7] — 2026-06-15
 
 ### Fixed
