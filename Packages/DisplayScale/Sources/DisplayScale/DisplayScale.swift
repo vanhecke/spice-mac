@@ -146,18 +146,21 @@ public enum DisplayScale {
 
     // MARK: - Stepping
 
-    /// Step through the fixed ladder, clamping at both ends — which is what the menu
-    /// validation uses to disable Zoom In / Zoom Out.
+    /// Step through the fixed ladder, returning the input unchanged at either end —
+    /// which is what the menu validation uses to disable Zoom In / Zoom Out.
     ///
     /// `.automatic` first resolves to its current effective percentage, so zooming
-    /// in on a Retina display goes Automatic (200%) → 300% rather than down to 100%.
+    /// in on a Retina display goes Automatic (200%) → 300% rather than down to
+    /// 100%. The clamp returns `zoom` itself, not the nearest rung: a mode has to
+    /// clamp to the mode, or Zoom Out on a 1x screen would silently freeze
+    /// Automatic into a fixed level.
     public static func step(_ zoom: DisplayZoom, by direction: Int,
                             backingScale: CGFloat) -> DisplayZoom {
         let current = Int((zoom.factor(backingScale: backingScale) * 100).rounded())
         if direction > 0 {
-            return DisplayZoom.ladder.first { $0.rawValue > current } ?? .percent400
+            return DisplayZoom.ladder.first { $0.rawValue > current } ?? zoom
         } else {
-            return DisplayZoom.ladder.last { $0.rawValue < current } ?? .percent100
+            return DisplayZoom.ladder.last { $0.rawValue < current } ?? zoom
         }
     }
 }

@@ -231,9 +231,13 @@ t.test("zoom in/out steps away from automatic's CURRENT effective level") {
     t.expectEqual(DisplayScale.step(.percent150, by: -1, backingScale: 2), .percent125)
 }
 
-t.test("stepping clamps at both ends (returns itself, which disables the menu item)") {
+t.test("stepping clamps to the INPUT at both ends, modes included") {
     t.expectEqual(DisplayScale.step(.percent400, by: 1, backingScale: 2), .percent400)
     t.expectEqual(DisplayScale.step(.percent100, by: -1, backingScale: 2), .percent100)
+    // A mode clamps to the mode: on a 1x screen Automatic already sits at the bottom
+    // rung, and returning `.percent100` there would freeze it into a fixed level.
+    t.expectEqual(DisplayScale.step(.automatic, by: -1, backingScale: 1), .automatic)
+    t.expectEqual(DisplayScale.step(.automatic, by: 1, backingScale: 4), .automatic)
 }
 
 // MARK: - Crossing between displays

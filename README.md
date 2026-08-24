@@ -14,7 +14,8 @@ UTM uses). Apple-Silicon only.
 > resize; keyboard including ⌘/modifiers; mouse with the guest cursor aligned to
 > the macOS pointer; bidirectional clipboard; and audio (needs a SPICE audio
 > device on the VM). USB redirection is plumbed via the Connection menu. The `.vv`
-> parser and keyboard map are also unit-tested (28 dependency-free checks).
+> parser, keyboard map, and zoom geometry are also unit-tested (57 dependency-free
+> checks).
 >
 > | Feature | Status |
 > |---|---|
