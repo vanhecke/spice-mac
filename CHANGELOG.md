@@ -39,7 +39,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`guest × Z ÷ backing scale` points) rather than doing nothing — the guest
   resolution is fixed, so that is the only side of the equation left. The
   geometry is a new dependency-free package, `Packages/DisplayScale`, with a
-  20-check `scalecheck` runner wired into `make test` and CI.
+  21-check `scalecheck` runner wired into `make test` and CI.
 
 ### Changed
 
@@ -53,6 +53,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   guest reconfiguration.
 
 ### Fixed
+
+- **Guest text was blurry at some window sizes and not others**, worst on a
+  normal-DPI monitor. The sampler only went nearest-neighbour at 2× or more, so
+  a 1:1 presentation — what 100% means on a 1x screen — always took the bilinear
+  path; and because the requested mode is floored onto the 8-wide/2-high grid
+  guest drivers want, the centred quad landed on a **half-pixel** offset
+  whenever that slack was odd. Nearest now applies at any whole-number
+  magnification, and `viewportOrigin` nudges the quad onto whole pixels — the
+  input router subtracts the same origin, so the cursor stays locked.
 
 - **Dragging a window between a Retina panel and a 1x monitor did not re-scale
   the guest.** `MTKView` refreshes `drawableSize` lazily, so inside

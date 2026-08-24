@@ -8,7 +8,7 @@ on:
 # The full app needs Xcode's Metal toolchain and the native SPICE sysroot, neither
 # of which CI fetches. These jobs cover what builds and tests with only the Swift
 # toolchain: the .vv parser, the macOS-keycode → scancode map, and the zoom /
-# viewport geometry (57 checks).
+# viewport geometry (58 checks).
 # The CocoaSpice fork patch is syntax-checked as part of the local Xcode build
 # (it needs the Metal/CocoaSpiceRenderer modules, so it can't run standalone here).
 

@@ -152,12 +152,45 @@ t.test("renderScale is deterministic — the renderer and the input router can't
     t.expectClose(first, 2)
 }
 
-t.test("nearest-neighbour only at a whole-number magnification of 2 or more") {
+t.test("nearest-neighbour at ANY whole-number magnification, 1:1 included") {
     t.expect(DisplayScale.usesNearestFilter(scale: 2), "2x is exact pixel doubling")
     t.expect(DisplayScale.usesNearestFilter(scale: 3), "3x is exact pixel tripling")
+    // 1:1 is a pure blit. Leaving it linear is what made odd-slack widths blurry.
+    t.expect(DisplayScale.usesNearestFilter(scale: 1), "1:1 is a pure blit")
     t.expect(!DisplayScale.usesNearestFilter(scale: 2.5), "fractional must stay linear")
-    t.expect(!DisplayScale.usesNearestFilter(scale: 1), "1:1 keeps the linear path")
     t.expect(!DisplayScale.usesNearestFilter(scale: 0.5), "downscaling must stay linear")
+}
+
+t.test("the quad is nudged onto whole pixels when the letterbox slack is odd") {
+    func edge(_ guest: CGSize, _ drawable: CGSize, _ scale: CGFloat) -> CGFloat {
+        let o = DisplayScale.pixelAlignedOrigin(guest: guest, drawable: drawable, scale: scale)
+        return (drawable.width - guest.width * scale) / 2 + o.x
+    }
+    // Odd slack: 1507 - 1504 = 3, so the centred edge sits at 1.5 and needs half a
+    // pixel.
+    let odd = DisplayScale.pixelAlignedOrigin(guest: CGSize(width: 1504, height: 982),
+                                              drawable: CGSize(width: 1507, height: 982),
+                                              scale: 1)
+    t.expectClose(abs(odd.x), 0.5)
+    t.expectClose(odd.y, 0)
+    t.expectClose(edge(CGSize(width: 1504, height: 982),
+                       CGSize(width: 1507, height: 982), 1).truncatingRemainder(dividingBy: 1), 0)
+    let even = DisplayScale.pixelAlignedOrigin(guest: CGSize(width: 1504, height: 980),
+                                               drawable: CGSize(width: 1508, height: 982),
+                                               scale: 1)
+    t.expectClose(even.x, 0)
+    t.expectClose(even.y, 0)
+    // Holds at a magnification too, across every slack a floored G can produce.
+    for slack in stride(from: 0.0, through: 7.0, by: 1.0) {
+        for scale in [1.0, 2.0, 3.0] as [CGFloat] {
+            let guest = CGSize(width: 1000, height: 600)
+            let drawable = CGSize(width: guest.width * scale + slack,
+                                  height: guest.height * scale)
+            let e = edge(guest, drawable, scale)
+            t.expect(abs(e - e.rounded()) < 0.0001,
+                     "slack \(slack) at \(scale)x left the quad on \(e)")
+        }
+    }
 }
 
 t.test("aspect-fit letterboxes rather than cropping") {

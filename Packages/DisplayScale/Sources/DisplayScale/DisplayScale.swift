@@ -107,12 +107,31 @@ public enum DisplayScale {
         snapDownToInteger(fitScale(guest: guest, drawable: drawable))
     }
 
-    /// Nearest-neighbour is only correct at a whole-number magnification of 2 or
-    /// more: each guest pixel becomes an exact N×N block, so guest text stays crisp
-    /// rather than bilinear-soft. Anything else — fractional, or a downscale — must
-    /// stay linear or it aliases badly.
+    /// Nearest-neighbour is correct at any whole-number magnification: each guest
+    /// pixel becomes an exact N×N block, so guest text stays crisp rather than
+    /// bilinear-soft. N = 1 counts — a 1:1 presentation is a pure blit, and leaving
+    /// it linear is what smeared it across the half-pixel offset
+    /// `pixelAlignedOrigin` corrects. Fractional scales and downscales must stay
+    /// linear or they alias badly.
     public static func usesNearestFilter(scale: CGFloat) -> Bool {
-        scale >= 2 && abs(scale - scale.rounded()) < 0.0001
+        scale >= 1 && abs(scale - scale.rounded()) < 0.0001
+    }
+
+    /// Sub-pixel correction that pulls the CENTRED guest quad onto whole drawable
+    /// pixels, to be added to the renderer's `viewportOrigin`. The quad edge sits
+    /// at `slack / 2` for `slack = drawable - guest · scale`, so odd slack lands it
+    /// on a half pixel — which the linear sampler blurs and the input router's
+    /// inverse mapping cannot see. Rounding gives one letterbox bar the odd pixel
+    /// instead.
+    public static func pixelAlignedOrigin(guest: CGSize, drawable: CGSize,
+                                          scale: CGFloat) -> CGPoint {
+        func correction(_ drawableSide: CGFloat, _ guestSide: CGFloat) -> CGFloat {
+            let half = (drawableSide - guestSide * scale) / 2
+            guard half.isFinite else { return 0 }
+            return half.rounded() - half
+        }
+        return CGPoint(x: correction(drawable.width, guest.width),
+                       y: correction(drawable.height, guest.height))
     }
 
     // MARK: - Window sizing

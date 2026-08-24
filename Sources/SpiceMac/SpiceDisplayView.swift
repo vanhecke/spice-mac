@@ -171,24 +171,29 @@ final class SpiceDisplayView: MTKView {
         // same number, snap included, or the guest cursor drifts from the macOS
         // pointer.
         let scale = DisplayScale.renderScale(guest: guest, drawable: drawable)
-        // The renderer centres the quad, so viewportOrigin stays .zero.
+        // Nudges the centred quad onto whole drawable pixels. The input router
+        // subtracts the same origin, so both stay on the identical transform.
         return ViewportInfo(guestSize: guest,
                             drawableSize: drawable,
                             scale: scale,
-                            origin: .zero,
+                            origin: DisplayScale.pixelAlignedOrigin(guest: guest,
+                                                                    drawable: drawable,
+                                                                    scale: scale),
                             backingScale: backingScale)
     }
 
-    /// Push the aspect-fit scale to the renderer and pick the sampler.
+    /// Push the aspect-fit scale and origin to the renderer, and pick the sampler.
     ///
-    /// The renderer centres the guest quad, so `viewportOrigin` stays `.zero` and
-    /// the letterbox bars split evenly. At a whole-number magnification — which zoom
-    /// aims for — every guest pixel becomes an exact NxN block, so nearest-neighbour
-    /// keeps guest text crisp; everything else stays linear.
+    /// The renderer centres the quad, but `align` floors the guest onto the 8/2
+    /// grid, so the leftover slack is often ODD and the centre lands on a half
+    /// pixel; `pixelAlignedOrigin` gives one letterbox bar the odd pixel instead.
+    /// At a whole-number magnification — which zoom aims for, 1:1 included —
+    /// nearest-neighbour keeps guest text crisp; fractional scales and downscales
+    /// stay linear.
     private func updateViewport() {
         guard let renderer, let info = viewportInfo() else { return }
         renderer.viewportScale = info.scale
-        renderer.viewportOrigin = .zero
+        renderer.viewportOrigin = info.origin
 
         let filter: MTLSamplerMinMagFilter =
             DisplayScale.usesNearestFilter(scale: info.scale) ? .nearest : .linear

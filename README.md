@@ -14,7 +14,7 @@ UTM uses). Apple-Silicon only.
 > resize; keyboard including ⌘/modifiers; mouse with the guest cursor aligned to
 > the macOS pointer; bidirectional clipboard; and audio (needs a SPICE audio
 > device on the VM). USB redirection is plumbed via the Connection menu. The `.vv`
-> parser, keyboard map, and zoom geometry are also unit-tested (57 dependency-free
+> parser, keyboard map, and zoom geometry are also unit-tested (58 dependency-free
 > checks).
 >
 > | Feature | Status |
@@ -184,7 +184,7 @@ The pure-Swift libraries build and test with just the Swift toolchain (no Xcode)
 ```sh
 ( cd Packages/VVConfig      && swift run vvcheck )     # .vv parser: 24 checks
 ( cd Packages/SpiceInputMap && swift run inputcheck )  # scancode map: 13 checks
-( cd Packages/DisplayScale  && swift run scalecheck )  # zoom geometry: 20 checks
+( cd Packages/DisplayScale  && swift run scalecheck )  # zoom geometry: 21 checks
 ```
 
 The CocoaSpice fork patch was syntax-checked against the real vendored
@@ -238,6 +238,11 @@ means there. If you want the apparent size to stay constant across a move, that 
 
 Shortcuts are ⌃⌘+ / ⌃⌘− / ⌃⌘0 (zoom in / out / Automatic) rather than plain ⌘±, so
 ⌘+ and ⌘− keep reaching the guest as Super-plus / Super-minus.
+
+Guest text is pixel-exact at any whole-number zoom, 1:1 included. The one case that stays
+soft is a guest that refuses the requested mode and picks a *larger* one from its own mode
+table: the picture then has to be downscaled to fit the window, and downscaling has to
+stay bilinear or it aliases badly.
 
 ## USB redirection
 
