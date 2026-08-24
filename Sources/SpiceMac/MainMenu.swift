@@ -109,6 +109,9 @@ enum MainMenu {
 
     /// View ▸ Zoom — how many host physical pixels each guest pixel occupies.
     ///
+    /// Per-window, like the Connection menu: `nil` targets, so the items travel the
+    /// responder chain to the front `SpiceWindowController`.
+    ///
     /// Shortcuts use ⌃⌘ (matching ⌃⌘F and ⌃⌥R) rather than plain ⌘, so ⌘+ / ⌘- / ⌘0
     /// keep reaching the guest as Super-plus / Super-minus / Super-zero — AppKit
     /// offers key-downs to the main menu before the responder chain.
@@ -121,11 +124,11 @@ enum MainMenu {
         // while Shift is down. Ship the pretty ⌃⌘+ item for display plus a hidden
         // twin on "=" (allowsKeyEquivalentWhenHidden keeps its shortcut live).
         let zoomIn = NSMenuItem(title: "Zoom In",
-                                action: #selector(AppDelegate.zoomIn(_:)), keyEquivalent: "+")
+                                action: #selector(SpiceWindowController.zoomIn(_:)), keyEquivalent: "+")
         zoomIn.keyEquivalentModifierMask = [.control, .command]
         menu.addItem(zoomIn)
         let zoomInUnshifted = NSMenuItem(title: "Zoom In",
-                                         action: #selector(AppDelegate.zoomIn(_:)), keyEquivalent: "=")
+                                         action: #selector(SpiceWindowController.zoomIn(_:)), keyEquivalent: "=")
         zoomInUnshifted.keyEquivalentModifierMask = [.control, .command]
         zoomInUnshifted.isHidden = true
         zoomInUnshifted.allowsKeyEquivalentWhenHidden = true
@@ -133,13 +136,13 @@ enum MainMenu {
 
         // "-" and "0" are unshifted on every layout we care about: one item each.
         let zoomOut = NSMenuItem(title: "Zoom Out",
-                                 action: #selector(AppDelegate.zoomOut(_:)), keyEquivalent: "-")
+                                 action: #selector(SpiceWindowController.zoomOut(_:)), keyEquivalent: "-")
         zoomOut.keyEquivalentModifierMask = [.control, .command]
         menu.addItem(zoomOut)
         menu.addItem(.separator())
 
         let automatic = NSMenuItem(title: DisplayZoom.automatic.title,
-                                   action: #selector(AppDelegate.setDisplayZoom(_:)), keyEquivalent: "0")
+                                   action: #selector(SpiceWindowController.setDisplayZoom(_:)), keyEquivalent: "0")
         automatic.keyEquivalentModifierMask = [.control, .command]
         automatic.tag = DisplayZoom.automatic.rawValue
         automatic.toolTip = "Match the guest resolution to the window's point size — 2× on a "
@@ -150,7 +153,7 @@ enum MainMenu {
 
         for level in DisplayZoom.ladder {
             let levelItem = NSMenuItem(title: level.title,
-                                       action: #selector(AppDelegate.setDisplayZoom(_:)), keyEquivalent: "")
+                                       action: #selector(SpiceWindowController.setDisplayZoom(_:)), keyEquivalent: "")
             levelItem.tag = level.rawValue
             menu.addItem(levelItem)
         }

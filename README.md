@@ -226,6 +226,16 @@ resolution simply tracks the window's *point* size: 2× on the built-in Retina d
 them. Pick **100%** for the old behaviour (guest resolution = full backing pixels;
 correct, but tiny on Retina).
 
+**The level is per window.** Each window is its own session on its own display, so
+setting a level in one leaves the others alone, and the Zoom menu always shows the front
+window's level. A newly opened window starts at whatever level you last picked.
+
+**A fixed level is absolute** — Z host pixels per guest pixel wherever the window is —
+and nothing but you ever changes it. Drag a 100% window onto the Retina panel and it
+stays at 100%; the guest reconfigures and its UI gets smaller, because that is what 100%
+means there. If you want the apparent size to stay constant across a move, that is what
+**Automatic** is for.
+
 Shortcuts are ⌃⌘+ / ⌃⌘− / ⌃⌘0 (zoom in / out / Automatic) rather than plain ⌘±, so
 ⌘+ and ⌘− keep reaching the guest as Super-plus / Super-minus.
 

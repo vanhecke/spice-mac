@@ -38,6 +38,12 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
     /// sized.
     private var lastKnownBackingScale: CGFloat = 0
 
+    /// The zoom THIS window is at. Per-window because each window is its own
+    /// session on its own display: a level picked in one has no business
+    /// reconfiguring another's guest. Seeded from `Preferences.displayZoom` (the
+    /// last level picked anywhere) and changed only by the menu commands below.
+    private var displayZoom: DisplayZoom = Preferences.displayZoom
+
     init(client: SpiceClient, sourceURL: URL) {
         self.client = client
         self.sourceURL = sourceURL
@@ -134,10 +140,6 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
 
     private func wireNotifications() {
         let center = NotificationCenter.default
-        notificationObservers.append(center.addObserver(
-            forName: .displayZoomChanged, object: nil, queue: .main) { [weak self] _ in
-            self?.applyZoomChange()
-        })
         // Hotplug/removal, sleep/wake, and Displays "scaled resolution" changes,
         // which resize the window WITHOUT a live resize. Longer delay: AppKit keeps
         // shuffling windows for a while after these.
@@ -215,7 +217,7 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         let allowed = (window.screen ?? NSScreen.main)
             .map { window.contentRect(forFrameRect: $0.visibleFrame).size }
         let target = DisplayScale.windowContentPoints(guest: size,
-                                                      zoom: Preferences.displayZoom,
+                                                      zoom: displayZoom,
                                                       backingScale: window.backingScaleFactor,
                                                       maximum: allowed)
         if recenter {
@@ -242,7 +244,7 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
               let display = displayView.attachedDisplay else { return }
         let target = DisplayScale.targetGuestSize(viewPoints: displayView.bounds.size,
                                                   backingScale: currentBackingScale,
-                                                  zoom: Preferences.displayZoom)
+                                                  zoom: displayZoom)
         guard DisplayScale.needsRequest(target: target,
                                         current: display.displaySize,
                                         lastRequested: lastRequestedGuestSize) else { return }
@@ -283,8 +285,7 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         } else if let size = displayView.attachedDisplay?.displaySize {
             resizeToDisplay(size, recenter: false)
         }
-        // Disconnected: nothing to do. The preference is global and persisted, so it
-        // applies to the next session.
+        // Disconnected: nothing to do; the level applies once a display attaches.
     }
 
     /// The window may now be on a different display, so re-apply the geometry: at a
@@ -380,13 +381,53 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         displayView.router.releaseAll()
     }
 
+    // MARK: - Zoom menu (responder chain targets)
+    //
+    // Per-window, so these live here rather than on the app delegate. With no session
+    // open nothing answers the selector and AppKit greys the submenu out.
+
+    @objc func setDisplayZoom(_ sender: NSMenuItem) {
+        guard let level = DisplayZoom(rawValue: sender.tag) else { return }
+        apply(zoom: level)
+    }
+
+    @objc func zoomIn(_ sender: Any?) { apply(zoom: steppedZoom(by: 1)) }
+    @objc func zoomOut(_ sender: Any?) { apply(zoom: steppedZoom(by: -1)) }
+
+    /// The next rung for this window, resolved against its own screen — which is
+    /// what turns `.automatic` into a percentage to step away from.
+    private func steppedZoom(by direction: Int) -> DisplayZoom {
+        DisplayScale.step(displayZoom, by: direction, backingScale: currentBackingScale)
+    }
+
+    private func apply(zoom: DisplayZoom) {
+        displayZoom = zoom
+        // Purely the seed for the next window; it does not reach any already open.
+        Preferences.displayZoom = zoom
+        applyZoomChange()
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(sendCtrlAltDel(_:)), #selector(releaseCursor(_:)):
             return displayView.router.input != nil
+        case #selector(setDisplayZoom(_:)):
+            // Radio-style: exactly one level checked, recomputed on every menu open
+            // so it tracks this window, including after ⌃⌘+ / ⌃⌘-.
+            menuItem.state = (menuItem.tag == displayZoom.rawValue) ? .on : .off
+            if menuItem.tag == DisplayZoom.automatic.rawValue {
+                // Show what Automatic currently resolves to on this window's screen.
+                let percent = Int((currentBackingScale * 100).rounded())
+                menuItem.title = "\(DisplayZoom.automatic.title) (\(percent)%)"
+            }
+        case #selector(zoomIn(_:)):
+            return steppedZoom(by: 1) != displayZoom
+        case #selector(zoomOut(_:)):
+            return steppedZoom(by: -1) != displayZoom
         default:
-            return true
+            break
         }
+        return true
     }
 
     // MARK: - USB menu

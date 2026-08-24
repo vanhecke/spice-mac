@@ -40,21 +40,17 @@ enum Preferences {
 
     private static let displayZoomKey = "DisplayZoom"
 
-    /// Display zoom: host physical pixels per guest pixel, so at 200% the guest
-    /// renders a quarter of the pixels and each is drawn as a 2x2 block. Default
-    /// `.automatic` (zoom = backingScaleFactor), which makes the guest resolution
-    /// track the window's POINT size. Changing it posts `.displayZoomChanged`, and
-    /// raw 0 == `.automatic`, so a missing key reads as automatic.
+    /// The zoom level a NEWLY opened window starts at: host physical pixels per
+    /// guest pixel. A seed, NOT a live global — zoom belongs to the window (see
+    /// `SpiceWindowController.displayZoom`), so writing this notifies nobody.
+    /// Default `.automatic` (zoom = backingScaleFactor), and raw 0 == `.automatic`,
+    /// so a missing key reads as automatic.
     static var displayZoom: DisplayZoom {
         get { DisplayZoom(rawValue: UserDefaults.standard.integer(forKey: displayZoomKey)) ?? .automatic }
-        set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: displayZoomKey)
-            NotificationCenter.default.post(name: .displayZoomChanged, object: nil)
-        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: displayZoomKey) }
     }
 }
 
 extension Notification.Name {
     static let hideHostCursorChanged = Notification.Name("SpiceMac.hideHostCursorChanged")
-    static let displayZoomChanged = Notification.Name("SpiceMac.displayZoomChanged")
 }

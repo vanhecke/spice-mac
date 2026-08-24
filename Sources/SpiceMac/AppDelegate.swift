@@ -2,7 +2,6 @@
 import AppKit
 import VVConfig
 import SpiceController
-import DisplayScale
 
 /// App entry: builds the menu and opens Proxmox `.vv` SPICE files (via
 /// double-click, File ▸ Open, or drag-and-drop), spawning a window per session.
@@ -59,27 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         sender.state = Preferences.trashConnectionFileAfterUse ? .on : .off
     }
 
-    // MARK: - Zoom
-
-    @objc func setDisplayZoom(_ sender: NSMenuItem) {
-        guard let level = DisplayZoom(rawValue: sender.tag) else { return }
-        Preferences.displayZoom = level
-    }
-
-    @objc func zoomIn(_ sender: Any?) { stepZoom(by: 1) }
-    @objc func zoomOut(_ sender: Any?) { stepZoom(by: -1) }
-
-    private func stepZoom(by direction: Int) {
-        Preferences.displayZoom = DisplayScale.step(Preferences.displayZoom,
-                                                    by: direction,
-                                                    backingScale: frontBackingScale)
-    }
-
-    /// Backing scale of the screen the front window is on — needed to resolve
-    /// `.automatic` into a percentage for stepping and for the menu title.
-    private var frontBackingScale: CGFloat {
-        NSApp.keyWindow?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-    }
+    // View ▸ Zoom is per-window and lives on SpiceWindowController, reached down the
+    // responder chain — see the Zoom menu section there.
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
@@ -89,20 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             menuItem.state = Preferences.shareClipboard ? .on : .off
         case #selector(toggleTrashConnectionFile(_:)):
             menuItem.state = Preferences.trashConnectionFileAfterUse ? .on : .off
-        case #selector(setDisplayZoom(_:)):
-            // Radio-style: exactly one level checked, recomputed every time the menu
-            // opens so it stays right across windows and after ⌃⌘+ / ⌃⌘-.
-            menuItem.state = (menuItem.tag == Preferences.displayZoom.rawValue) ? .on : .off
-            if menuItem.tag == DisplayZoom.automatic.rawValue {
-                // Show what Automatic currently resolves to on this screen.
-                menuItem.title = "\(DisplayZoom.automatic.title) (\(Int((frontBackingScale * 100).rounded()))%)"
-            }
-        case #selector(zoomIn(_:)):
-            return DisplayScale.step(Preferences.displayZoom, by: 1,
-                                     backingScale: frontBackingScale) != Preferences.displayZoom
-        case #selector(zoomOut(_:)):
-            return DisplayScale.step(Preferences.displayZoom, by: -1,
-                                     backingScale: frontBackingScale) != Preferences.displayZoom
         default:
             break
         }

@@ -17,6 +17,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pixel is drawn as a Z×Z block, so readability and cost improve together.
   Shortcuts **⌃⌘+ / ⌃⌘− / ⌃⌘0**.
 
+- **The zoom level is per-window, and a fixed level is absolute.** Each window
+  is its own session on its own display, so it carries its own level: picking
+  one in the front window leaves the others alone. The commands live on the
+  window controller and reach it down the responder chain the way `Connection ▸
+  Send Ctrl-Alt-Del` already did, so the submenu greys out with no session open;
+  the preference is only the seed a new window starts from. Nothing but the user
+  ever changes a level — **Automatic** is the mode for constant apparent size
+  across a move.
+
 - **A window that changes display re-applies its geometry.** At a fixed level
   the target guest size is `points × backing scale ÷ Z`, and a move changes the
   backing scale out from under it — which is why it used to need a manual nudge
