@@ -17,11 +17,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   pixel is drawn as a Z×Z block, so readability and cost improve together.
   Shortcuts **⌃⌘+ / ⌃⌘− / ⌃⌘0**.
 
-- **Without `spice-vdagent`, zoom resizes the *window***
+- **A window that changes display re-applies its geometry.** At a fixed level
+  the target guest size is `points × backing scale ÷ Z`, and a move changes the
+  backing scale out from under it — which is why it used to need a manual nudge
+  of the window before the guest came out right. All four signals AppKit offers
+  now drive it, including `NSApplicationDidChangeScreenParameters` for hotplug,
+  sleep/wake and Displays scaled-mode changes, which resize the window without a
+  live resize. Requests are coalesced, so four triggers cost at most one guest
+  mode switch.
+
+- **Without `spice-vdagent`, zoom and screen changes resize the *window***
   (`guest × Z ÷ backing scale` points) rather than doing nothing — the guest
   resolution is fixed, so that is the only side of the equation left. The
   geometry is a new dependency-free package, `Packages/DisplayScale`, with a
-  18-check `scalecheck` runner wired into `make test` and CI.
+  20-check `scalecheck` runner wired into `make test` and CI.
 
 ### Changed
 

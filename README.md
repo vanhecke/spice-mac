@@ -183,7 +183,7 @@ The pure-Swift libraries build and test with just the Swift toolchain (no Xcode)
 ```sh
 ( cd Packages/VVConfig      && swift run vvcheck )     # .vv parser: 24 checks
 ( cd Packages/SpiceInputMap && swift run inputcheck )  # scancode map: 13 checks
-( cd Packages/DisplayScale  && swift run scalecheck )  # zoom geometry: 18 checks
+( cd Packages/DisplayScale  && swift run scalecheck )  # zoom geometry: 20 checks
 ```
 
 The CocoaSpice fork patch was syntax-checked against the real vendored

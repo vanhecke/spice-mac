@@ -32,6 +32,12 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
     /// Block-based NotificationCenter observers, removed on close.
     private var notificationObservers: [NSObjectProtocol] = []
 
+    /// Backing scale of the screen this window was last seen on. Seeded at creation
+    /// so a window that merely OPENS on a Retina screen is not mistaken for one
+    /// that MOVED onto it, which would resize a window the user had deliberately
+    /// sized.
+    private var lastKnownBackingScale: CGFloat = 0
+
     init(client: SpiceClient, sourceURL: URL) {
         self.client = client
         self.sourceURL = sourceURL
@@ -44,6 +50,7 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         window.acceptsMouseMovedEvents = true
         window.title = baseTitle
         window.center()
+        lastKnownBackingScale = window.backingScaleFactor
         setupViews()
         wireClient()
         wireNotifications()
@@ -68,14 +75,10 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         displayView.autoresizingMask = [.width, .height]
         displayView.frame = containerView.bounds
         containerView.addSubview(displayView)
-        // The view is the only place that learns about a backing-scale change
-        // (NSView.viewDidChangeBackingProperties). It reports it up so we can
-        // re-request a guest resolution: at a fixed zoom, moving between a Retina and
-        // a 1x screen changes drawable/zoom and so the resolution the guest should be
-        // at. In Automatic it does not, and the idempotence guard turns this into a
-        // no-op — which is exactly the point of Automatic.
+        // One of the signals for "this window is on a different display"; they all
+        // funnel into screenChanged(), which is idempotent about the duplicates.
         displayView.onBackingScaleChange = { [weak self] _ in
-            self?.scheduleResolutionRequest()
+            self?.screenChanged()
         }
 
         statusLabel.alignment = .center
@@ -141,7 +144,7 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         notificationObservers.append(center.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in
-            self?.scheduleResolutionRequest(after: 0.6)
+            self?.screenChanged(after: 0.6)
         })
     }
 
@@ -284,11 +287,47 @@ final class SpiceWindowController: NSWindowController, NSWindowDelegate, NSMenuI
         // applies to the next session.
     }
 
+    /// The window may now be on a different display, so re-apply the geometry: at a
+    /// fixed level the target is `points × backingScale / Z` and the move just
+    /// changed the backing scale. The zoom LEVEL is never touched — a level the
+    /// user picked is a decision. Every request goes through
+    /// `DisplayScale.needsRequest` and is coalesced, so the several events one drag
+    /// produces cost at most one guest mode switch.
+    private func screenChanged(after delay: TimeInterval = 0.3) {
+        let scale = currentBackingScale
+        let moved = lastKnownBackingScale > 0 && abs(scale - lastKnownBackingScale) > 0.001
+        lastKnownBackingScale = scale
+
+        if client.supportsDynamicResolution {
+            // Run on every screen event, not just a scale change: two 1x monitors
+            // differ in the clamp a later resize applies.
+            scheduleResolutionRequest(after: delay)
+        } else if moved, let size = displayView.attachedDisplay?.displaySize {
+            // No agent: the guest resolution is fixed, so honour the zoom on the
+            // other side of the equation. Gated on a REAL scale change, so a move
+            // between two same-scale monitors cannot snap back a window the user
+            // resized.
+            resizeToDisplay(size, recenter: false)
+        }
+    }
+
     // Request a matching guest resolution only at DISCRETE moments — never on the
     // continuous windowDidResize, which (during a live drag, or when a programmatic
     // resize fires it) creates the resize↔request oscillation.
     func windowDidEndLiveResize(_ notification: Notification) {
         scheduleResolutionRequest()
+    }
+
+    // The three ways AppKit reports a display change, all funnelled into the same
+    // idempotent handler because one drag does not reliably produce all three.
+    // windowDidChangeScreen is kept because it is the only one that also fires for a
+    // move between two SAME-scale monitors.
+    func windowDidChangeScreen(_ notification: Notification) {
+        screenChanged()
+    }
+
+    func windowDidChangeBackingProperties(_ notification: Notification) {
+        screenChanged()
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {

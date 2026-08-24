@@ -236,4 +236,38 @@ t.test("stepping clamps at both ends (returns itself, which disables the menu it
     t.expectEqual(DisplayScale.step(.percent100, by: -1, backingScale: 2), .percent100)
 }
 
+// MARK: - Crossing between displays
+
+t.test("automatic asks for the SAME guest size on either screen, so a move is free") {
+    // Why an Automatic drag costs no mode switch: Z tracks B, so P·B/Z is P on both.
+    let onLowDPI = DisplayScale.targetGuestSize(viewPoints: viewPoints,
+                                                backingScale: 1, zoom: .automatic)
+    let onRetina = DisplayScale.targetGuestSize(viewPoints: viewPoints,
+                                                backingScale: 2, zoom: .automatic)
+    t.expectSize(onLowDPI, onRetina)
+    // The two fixed levels that coincide with it, one per screen.
+    t.expectSize(onLowDPI, DisplayScale.targetGuestSize(viewPoints: viewPoints,
+                                                        backingScale: 1, zoom: .percent100))
+    t.expectSize(onRetina, DisplayScale.targetGuestSize(viewPoints: viewPoints,
+                                                        backingScale: 2, zoom: .percent200))
+    t.expect(!DisplayScale.needsRequest(target: onRetina, current: onLowDPI,
+                                        lastRequested: onLowDPI),
+             "an automatic move should not cost a guest mode switch")
+}
+
+t.test("a FIXED level does need a new guest resolution on a move") {
+    // A fixed level is absolute, so the target moves with the backing scale and the
+    // request must go out. The level is never rewritten to hide that.
+    for zoom in [DisplayZoom.percent100, .percent150, .percent200] {
+        let before = DisplayScale.targetGuestSize(viewPoints: viewPoints,
+                                                  backingScale: 2, zoom: zoom)
+        let after = DisplayScale.targetGuestSize(viewPoints: viewPoints,
+                                                 backingScale: 1, zoom: zoom)
+        t.expect(!DisplayScale.nearlyEqual(before, after),
+                 "\(zoom.title): expected a different target, got \(str(before)) both times")
+        t.expect(DisplayScale.needsRequest(target: after, current: before, lastRequested: before),
+                 "\(zoom.title): a screen move must re-request")
+    }
+}
+
 t.finishAndExit()
